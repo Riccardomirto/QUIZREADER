@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lettore Quiz CSV 🎧</title>
+    <style>
+        :root {
+            --primary-color: #5d56f9;
+            --primary-light: #7b73ff;
+            --secondary-color: #f7a83b;
+            --bg-color: #f0f4f8;
+            --card-bg: #ffffff;
+            --text-color: #333;
+            --border-color: #e0e6ed;
+            --success-color: #4CAF50;
+            --error-color: #F44336;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            padding: 40px;
+            position: relative;
+        }
+
+        h1, h2 {
+            text-align: center;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        h2 {
+            font-size: 1.2em;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .status-message {
+            text-align: center;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .status-message.show {
+            display: block;
+            opacity: 1;
+        }
+
+        .status-message.success {
+            background-color: #e8f5e8;
+            color: var(--success-color);
+            border: 1px solid #c8e6c9;
+        }
+
+        .status-message.error {
+            background-color: #ffebee;
+            color: var(--error-color);
+            border: 1px solid #ffcdd2;
+        }
+
+        .file-upload-section, .controls-section, .settings-section, .reading-section, .preview-section {
+            background: #fafbfc;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            transition: all 0.3s ease;
+        }
+
+        .file-upload-section {
+            text-align: center;
+        }
+        
+        .file-upload-section.dragover {
+            background-color: #eef3f7;
+            border-color: var(--primary-light);
+            transform: translateY(-2px);
+        }
+
+        .file-input-label {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: var(--primary-color);
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.3s, transform 0.2s;
+            box-shadow: 0 4px 12px rgba(93, 86, 249, 0.25);
+            margin-top: 15px;
+        }
+
+        .file-input-label:hover {
+            background-color: var(--primary-light);
+            transform: translateY(-2px);
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .controls-section {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .btn {
+            padding: 12px 25px;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 140px;
+            justify-content: center;
+        }
+
+        .btn:disabled {
+            background-color: #e9ecef;
+            color: #adb5bd;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn-play {
+            background-color: var(--primary-color);
+            color: white;
+            box-shadow: 0 4px 15px rgba(93, 86, 249, 0.2);
+        }
+        
+        .btn-play:not(:disabled):hover {
+            background-color: var(--primary-light);
+            transform: translateY(-2px);
+        }
+        
+        .btn-stop {
+            background-color: #f44336;
+            color: white;
+            box-shadow: 0 4px 15px rgba(244, 67, 54, 0.2);
+        }
+        
+        .btn-stop:not(:disabled):hover {
+            background-color: #e53935;
+            transform: translateY(-2px);
+        }
+        
+        .btn-pause {
+            background-color: var(--secondary-color);
+            color: white;
+            box-shadow: 0 4px 15px rgba(247, 168, 59, 0.2);
+        }
+        
+        .btn-pause:not(:disabled):hover {
+            background-color: #e8952b;
+            transform: translateY(-2px);
+        }
+
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        
+        .setting-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .setting-item label {
+            font-weight: 500;
+            color: #555;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .setting-item input[type="range"] {
+            width: 100%;
+            -webkit-appearance: none;
+            height: 8px;
+            background: #ddd;
+            border-radius: 4px;
+            outline: none;
+        }
+
+        .setting-item input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        
+        .range-value {
+            font-size: 0.9em;
+            color: #888;
+            text-align: right;
+        }
+
+        .reading-section {
+            display: none;
+            text-align: center;
+        }
+
+        #readingText {
+            font-size: 1.4em;
+            font-weight: 500;
+            min-height: 40px;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 12px;
+            background-color: #e0e6ed;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background-color: var(--secondary-color);
+            transition: width 0.3s ease-in-out;
+        }
+
+        .preview-section {
+            display: none;
+            margin-top: 25px;
+        }
+        
+        .preview-section h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #444;
+            font-size: 1.2em;
+            font-weight: 600;
+        }
+
+        .preview-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9em;
+            table-layout: fixed;
+        }
+        
+        .preview-table th, .preview-table td {
+            padding: 12px;
+            text-align: left;
+            border: 1px solid #e0e6ed;
+        }
+        
+        .preview-table th {
+            background-color: var(--primary-color);
+            color: white;
+            font-weight: 600;
+        }
+        
+        .preview-table tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+        
+        .preview-table tr:hover {
+            background-color: #f0f4f8;
+        }
+        
+        #current-cell-text {
+            font-weight: bold;
+            color: var(--primary-color);
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+        
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .checkbox-container label {
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        .horizontal-sliders {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .horizontal-sliders .setting-item {
+            flex: 1;
+            min-width: 150px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Lettore Quiz 🎧</h1>
+        <h2>Carica un file CSV e ascolta le tue domande e risposte.</h2>
+
+        <div class="status-message" id="statusMessage"></div>
+
+        <div class="file-upload-section" id="uploadArea">
+            <input type="file" id="fileInput" accept=".csv">
+            <label for="fileInput" class="file-input-label">
+                <span id="upload-icon">📁</span> Seleziona o trascina un file CSV
+            </label>
+            <p style="color: #888; font-size: 0.9em; margin-top: 10px;">
+                I file devono essere in formato CSV (valori separati da virgola).
+            </p>
+        </div>
+
+        <div class="settings-section" id="settingsSection">
+            <h3 style="margin-top: 0; margin-bottom: 20px; text-align: center;">⚙️ Impostazioni</h3>
+            <div class="horizontal-sliders">
+                <div class="setting-item">
+                    <label for="speechRate">Velocità di lettura:</label>
+                    <input type="range" id="speechRate" min="0.5" max="2" step="0.1" value="1">
+                    <div class="range-value"><span id="rateValue">1.0</span>x</div>
+                </div>
+                <div class="setting-item">
+                    <label for="speechPitch">Tonalità voce:</label>
+                    <input type="range" id="speechPitch" min="0.5" max="2" step="0.1" value="1">
+                    <div class="range-value"><span id="pitchValue">1.0</span></div>
+                </div>
+                <div class="setting-item">
+                    <label for="lastColumnPause">Pausa prima della risposta (s):</label>
+                    <input type="range" id="lastColumnPause" min="1" max="30" step="1" value="2">
+                    <div class="range-value"><span id="pauseValue">2</span>s</div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <div class="setting-item">
+                    <label style="font-size: 1em;">Voce di lettura:</label>
+                    <p style="color: var(--primary-color); font-weight: bold; margin: 0; font-size: 0.9em;" id="voiceNameDisplay">Caricamento...</p>
+                </div>
+            </div>
+            <div style="margin-top: 20px;">
+                <div class="checkbox-container">
+                    <input type="checkbox" id="randomOrder">
+                    <label for="randomOrder">Riproduci le domande in ordine casuale</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls-section">
+            <button class="btn btn-play" id="playBtn" disabled>▶️ Inizia</button>
+            <button class="btn btn-pause" id="pauseBtn" disabled>⏸️ Pausa</button>
+            <button class="btn btn-stop" id="stopBtn" disabled>⏹️ Ferma</button>
+        </div>
+
+        <div class="reading-section" id="readingSection">
+            <h3 style="margin-bottom: 10px;">Lettura in corso...</h3>
+            <div id="readingText"></div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <p style="font-size: 0.9em; color: #888; margin-top: 10px;">
+                <span id="progressCurrent">0</span> di <span id="progressTotal">0</span> domande lette
+            </p>
+        </div>
+
+        <div class="preview-section" id="previewSection">
+            <h3>Anteprima File CSV</h3>
+            <div style="overflow-x: auto;">
+                <table class="preview-table" id="previewTable">
+                    <thead></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class QuizReaderApp {
+            constructor() {
+                this.csvData = [];
+                this.dataRows = [];
+                this.currentRowIndex = 0;
+                this.currentCol = 0;
+                this.isReading = false;
+                this.isPaused = false;
+                this.synthesis = window.speechSynthesis;
+                this.currentUtterance = null;
+                this.selectedVoice = null;
+                this.isVoicesLoaded = false;
+
+                this.elements = {
+                    fileInput: document.getElementById('fileInput'),
+                    uploadArea: document.getElementById('uploadArea'),
+                    statusMessage: document.getElementById('statusMessage'),
+                    playBtn: document.getElementById('playBtn'),
+                    pauseBtn: document.getElementById('pauseBtn'),
+                    stopBtn: document.getElementById('stopBtn'),
+                    speechRate: document.getElementById('speechRate'),
+                    speechPitch: document.getElementById('speechPitch'),
+                    lastColumnPause: document.getElementById('lastColumnPause'),
+                    rateValue: document.getElementById('rateValue'),
+                    pitchValue: document.getElementById('pitchValue'),
+                    pauseValue: document.getElementById('pauseValue'),
+                    randomOrder: document.getElementById('randomOrder'),
+                    readingSection: document.getElementById('readingSection'),
+                    readingText: document.getElementById('readingText'),
+                    progressFill: document.getElementById('progressFill'),
+                    progressCurrent: document.getElementById('progressCurrent'),
+                    progressTotal: document.getElementById('progressTotal'),
+                    previewSection: document.getElementById('previewSection'),
+                    previewTable: document.getElementById('previewTable'),
+                    voiceNameDisplay: document.getElementById('voiceNameDisplay')
+                };
+
+                this.bindEvents();
+                this.initTTS();
+            }
+
+            bindEvents() {
+                this.elements.fileInput.addEventListener('change', this.handleFileSelect.bind(this));
+                this.elements.uploadArea.addEventListener('dragover', this.handleDragOver.bind(this));
+                this.elements.uploadArea.addEventListener('dragleave', this.handleDragLeave.bind(this));
+                this.elements.uploadArea.addEventListener('drop', this.handleDrop.bind(this));
+                this.elements.playBtn.addEventListener('click', this.startReading.bind(this));
+                this.elements.pauseBtn.addEventListener('click', this.pauseReading.bind(this));
+                this.elements.stopBtn.addEventListener('click', this.stopReading.bind(this));
+                this.elements.speechRate.addEventListener('input', e => this.elements.rateValue.textContent = e.target.value);
+                this.elements.speechPitch.addEventListener('input', e => this.elements.pitchValue.textContent = e.target.value);
+                this.elements.lastColumnPause.addEventListener('input', e => this.elements.pauseValue.textContent = e.target.value);
+            }
+
+            initTTS() {
+                if (!('speechSynthesis' in window)) {
+                    this.showStatus('Il tuo browser non supporta la sintesi vocale.', 'error');
+                    return;
+                }
+                
+                this.synthesis.onvoiceschanged = () => {
+                    if (!this.isVoicesLoaded) {
+                        this.selectBestVoice();
+                        this.isVoicesLoaded = true;
+                    }
+                };
+
+                // Fallback nel caso onvoiceschanged non si attivi subito
+                if (this.synthesis.getVoices().length > 0) {
+                    this.selectBestVoice();
+                    this.isVoicesLoaded = true;
+                } else {
+                    this.elements.voiceNameDisplay.textContent = 'Caricamento voci...';
+                }
+            }
+            
+            selectBestVoice() {
+                const availableVoices = this.synthesis.getVoices();
+                let selectedVoice = null;
+                const preferredNames = [
+                    'Microsoft Elsa Online (Natural)', 'Microsoft Diego Online (Natural)', 
+                    'Microsoft Ida Online (Natural)', 'Google Italiano', 'Google Italian'
+                ];
+
+                for (const name of preferredNames) {
+                    const found = availableVoices.find(v => v.lang.startsWith('it') && v.name.includes(name));
+                    if (found) {
+                        selectedVoice = found;
+                        break;
+                    }
+                }
+                
+                if (!selectedVoice) {
+                    selectedVoice = availableVoices.find(v => v.lang.startsWith('it'));
+                }
+
+                if (selectedVoice) {
+                    this.selectedVoice = selectedVoice;
+                    this.elements.voiceNameDisplay.textContent = selectedVoice.name;
+                    this.showStatus(`Voce selezionata: ${selectedVoice.name}`, 'success', 3000);
+                } else {
+                    this.elements.voiceNameDisplay.textContent = 'Nessuna voce italiana';
+                    this.showStatus('Nessuna voce italiana trovata. La qualità dell\'audio potrebbe essere ridotta.', 'error', 5000);
+                }
+            }
+
+            handleDragOver(e) {
+                e.preventDefault();
+                this.elements.uploadArea.classList.add('dragover');
+            }
+            
+            handleDragLeave(e) {
+                e.preventDefault();
+                this.elements.uploadArea.classList.remove('dragover');
+            }
+
+            handleDrop(e) {
+                e.preventDefault();
+                this.elements.uploadArea.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    this.processFile(files[0]);
+                }
+            }
+
+            async handleFileSelect(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    this.processFile(file);
+                }
+            }
+
+            async processFile(file) {
+                if (!file.name.toLowerCase().endsWith('.csv')) {
+                    this.showStatus('Per favore seleziona un file CSV valido.', 'error');
+                    return;
+                }
+
+                this.showStatus('Caricamento file in corso...', 'info');
+                
+                try {
+                    const text = await this.readFileAsText(file);
+                    this.parseCSV(text);
+                    const totalRows = this.dataRows.length;
+                    if (totalRows > 0) {
+                        this.showStatus(`✅ Quiz caricato! Trovate ${totalRows} domande.`, 'success');
+                        this.elements.playBtn.disabled = false;
+                        this.showPreview();
+                    } else {
+                        this.showStatus('Il file CSV non contiene dati validi.', 'error');
+                        this.elements.playBtn.disabled = true;
+                    }
+                } catch (error) {
+                    this.showStatus('Errore nel caricamento del file: ' + error.message, 'error');
+                    this.elements.playBtn.disabled = true;
+                }
+            }
+
+            readFileAsText(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.onerror = (e) => reject(new Error('Errore nella lettura del file'));
+                    reader.readAsText(file, 'utf-8');
+                });
+            }
+
+            parseCSV(text) {
+                const lines = text.split('\n').filter(line => line.trim());
+                this.csvData = lines.map(line => {
+                    const result = [];
+                    let current = '';
+                    let inQuotes = false;
+                    for (let i = 0; i < line.length; i++) {
+                        const char = line[i];
+                        if (char === '"') {
+                            inQuotes = !inQuotes;
+                        } else if (char === ',' && !inQuotes) {
+                            result.push(current.trim().replace(/^"|"$/g, ''));
+                            current = '';
+                        } else {
+                            current += char;
+                        }
+                    }
+                    result.push(current.trim().replace(/^"|"$/g, ''));
+                    return result;
+                });
+                this.dataRows = this.csvData.slice(1);
+            }
+
+            showPreview() {
+                this.elements.previewSection.style.display = 'block';
+                const tableHead = this.elements.previewTable.querySelector('thead');
+                const tableBody = this.elements.previewTable.querySelector('tbody');
+                
+                tableHead.innerHTML = '';
+                tableBody.innerHTML = '';
+
+                if (this.csvData.length > 0) {
+                    const headerRow = document.createElement('tr');
+                    this.csvData[0].forEach(header => {
+                        const th = document.createElement('th');
+                        th.textContent = header;
+                        headerRow.appendChild(th);
+                    });
+                    tableHead.appendChild(headerRow);
+                }
+
+                const previewRows = this.dataRows.slice(0, 5);
+                previewRows.forEach(row => {
+                    const tr = document.createElement('tr');
+                    row.forEach(cell => {
+                        const td = document.createElement('td');
+                        td.textContent = cell;
+                        tr.appendChild(td);
+                    });
+                    tableBody.appendChild(tr);
+                });
+            }
+
+            startReading() {
+                if (this.dataRows.length === 0) return;
+                
+                this.synthesis.cancel();
+                
+                this.isReading = true;
+                this.isPaused = false;
+                this.currentRowIndex = 0;
+                this.currentCol = 0;
+
+                this.elements.playBtn.disabled = true;
+                this.elements.stopBtn.disabled = false;
+                this.elements.pauseBtn.disabled = false;
+                this.elements.readingSection.style.display = 'block';
+                this.elements.progressTotal.textContent = this.dataRows.length;
+                this.elements.progressCurrent.textContent = 0;
+
+                if (this.elements.randomOrder.checked) {
+                    this.shuffleArray(this.dataRows);
+                }
+                
+                this.readNextCell();
+            }
+
+            shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+            }
+
+            readNextCell() {
+                if (!this.isReading || this.isPaused) return;
+
+                if (this.currentRowIndex >= this.dataRows.length) {
+                    this.finishReading();
+                    return;
+                }
+
+                const row = this.dataRows[this.currentRowIndex];
+                
+                if (this.currentCol >= row.length) {
+                    this.currentRowIndex++;
+                    this.currentCol = 0;
+                    this.readNextCell();
+                    return;
+                }
+
+                const cellText = row[this.currentCol];
+                const isLastColumn = this.currentCol === row.length - 1;
+
+                if (cellText && cellText.trim()) {
+                    if (isLastColumn) {
+                        this.speakPreambleAndText("La risposta corretta è:", cellText.trim());
+                    } else {
+                        this.speakText(cellText.trim());
+                    }
+                } else {
+                    this.moveToNextCell();
+                }
+
+                this.updateProgress();
+            }
+
+            speakPreambleAndText(preamble, mainText) {
+                this.elements.readingText.innerHTML = preamble;
+                const preambleUtterance = new SpeechSynthesisUtterance(preamble);
+                preambleUtterance.lang = 'it-IT';
+                preambleUtterance.voice = this.selectedVoice;
+                preambleUtterance.rate = parseFloat(this.elements.speechRate.value);
+                preambleUtterance.pitch = parseFloat(this.elements.speechPitch.value);
+
+                preambleUtterance.onend = () => {
+                    if (this.isReading && !this.isPaused) {
+                        setTimeout(() => this.speakText(mainText, true), 500);
+                    }
+                };
+                
+                this.synthesis.speak(preambleUtterance);
+            }
+
+            speakText(text, isAnswer = false) {
+                this.elements.readingText.innerHTML = text;
+                
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'it-IT';
+                utterance.voice = this.selectedVoice;
+                utterance.rate = parseFloat(this.elements.speechRate.value);
+                utterance.pitch = parseFloat(this.elements.speechPitch.value);
+                
+                utterance.onend = () => {
+                    if (this.isReading && !this.isPaused) {
+                        if (isAnswer) {
+                            const pauseDuration = parseInt(this.elements.lastColumnPause.value) * 1000;
+                            setTimeout(() => {
+                                this.moveToNextCell();
+                            }, pauseDuration);
+                        } else {
+                            this.moveToNextCell();
+                        }
+                    }
+                };
+                
+                utterance.onerror = (e) => {
+                    console.error('Errore TTS:', e);
+                    this.showStatus('Errore nella sintesi vocale. Riprovo...', 'error', 3000);
+                    this.moveToNextCell();
+                };
+
+                this.currentUtterance = utterance;
+                this.synthesis.speak(this.currentUtterance);
+            }
+
+            moveToNextCell() {
+                this.currentCol++;
+                this.readNextCell();
+            }
+
+            updateProgress() {
+                const totalCells = this.dataRows.reduce((sum, row) => sum + row.length, 0);
+                const currentCellIndex = this.dataRows.slice(0, this.currentRowIndex).reduce((sum, row) => sum + row.length, 0) + this.currentCol;
+                
+                const progressPercentage = totalCells > 0 ? (currentCellIndex / totalCells) * 100 : 0;
+                this.elements.progressFill.style.width = progressPercentage + '%';
+                
+                this.elements.progressCurrent.textContent = this.currentRowIndex + 1;
+            }
+
+            pauseReading() {
+                if (this.isPaused) {
+                    this.isPaused = false;
+                    this.synthesis.resume();
+                    this.elements.pauseBtn.innerHTML = '⏸️ Pausa';
+                } else {
+                    this.isPaused = true;
+                    this.synthesis.pause();
+                    this.elements.pauseBtn.innerHTML = '▶️ Riprendi';
+                }
+            }
+
+            stopReading() {
+                this.isReading = false;
+                this.isPaused = false;
+                this.synthesis.cancel();
+                this.finishReading();
+            }
+
+            finishReading() {
+                this.isReading = false;
+                this.isPaused = false;
+                this.elements.playBtn.disabled = false;
+                this.elements.stopBtn.disabled = true;
+                this.elements.pauseBtn.disabled = true;
+                this.elements.pauseBtn.innerHTML = '⏸️ Pausa';
+                this.elements.readingSection.style.display = 'none';
+                this.elements.progressFill.style.width = '0%';
+                this.showStatus('Lettura completata!', 'success', 3000);
+            }
+
+            showStatus(message, type, duration = 3000) {
+                const statusElement = this.elements.statusMessage;
+                statusElement.textContent = message;
+                statusElement.className = `status-message ${type} show`;
+                setTimeout(() => {
+                    statusElement.classList.remove('show');
+                }, duration);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            new QuizReaderApp();
+        });
+    </script>
+</body>
+</html>
