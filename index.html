@@ -386,6 +386,10 @@
         
         <div class="settings-section" id="subjectSelectionSection" style="display:none;">
             <h3 style="margin-top: 0; margin-bottom: 10px; text-align: center;">Seleziona le materie:</h3>
+            <div class="checkbox-container">
+                <input type="checkbox" id="selectAllSubjects">
+                <label for="selectAllSubjects">Seleziona tutti</label>
+            </div>
             <div id="subjectSelection"></div>
         </div>
 
@@ -452,7 +456,8 @@
                     previewTable: document.getElementById('previewTable'),
                     voiceNameDisplay: document.getElementById('voiceNameDisplay'),
                     subjectSelectionSection: document.getElementById('subjectSelectionSection'),
-                    subjectSelection: document.getElementById('subjectSelection')
+                    subjectSelection: document.getElementById('subjectSelection'),
+                    selectAllSubjects: document.getElementById('selectAllSubjects')
                 };
 
                 this.bindEvents();
@@ -467,6 +472,7 @@
                 this.elements.speechRate.addEventListener('input', e => this.elements.rateValue.textContent = e.target.value);
                 this.elements.speechPitch.addEventListener('input', e => this.elements.pitchValue.textContent = e.target.value);
                 this.elements.lastColumnPause.addEventListener('input', e => this.elements.pauseValue.textContent = e.target.value);
+                this.elements.selectAllSubjects.addEventListener('change', this.toggleAllSubjects.bind(this));
             }
 
             initTTS() {
@@ -570,7 +576,7 @@
                 });
                 this.dataRows = this.csvData.slice(1);
                 
-                // Popola il set di tutte le materie
+                // Popola il set di tutte le materie dalla prima colonna
                 this.dataRows.forEach(row => {
                     if (row[this.subjectHeaderIndex]) {
                         this.allSubjects.add(row[this.subjectHeaderIndex].trim());
@@ -583,7 +589,7 @@
                 subjectContainer.innerHTML = '';
                 this.elements.subjectSelectionSection.style.display = 'block';
 
-                this.subjectSelectionMap = {}; // Reset map
+                this.subjectSelectionMap = {};
 
                 Array.from(this.allSubjects).sort().forEach(subject => {
                     const checkboxContainer = document.createElement('div');
@@ -593,7 +599,7 @@
                     checkbox.type = 'checkbox';
                     checkbox.id = `subject-${subject.replace(/\s/g, '-')}`;
                     checkbox.value = subject;
-                    checkbox.checked = true; // Seleziona tutte le materie di default
+                    checkbox.checked = true;
                     
                     const label = document.createElement('label');
                     label.htmlFor = `subject-${subject.replace(/\s/g, '-')}`;
@@ -604,10 +610,27 @@
                     subjectContainer.appendChild(checkboxContainer);
 
                     this.subjectSelectionMap[subject] = true;
-                    checkbox.addEventListener('change', (e) => {
-                        this.subjectSelectionMap[subject] = e.target.checked;
+                    checkbox.addEventListener('change', () => {
+                        this.subjectSelectionMap[subject] = checkbox.checked;
+                        this.updateSelectAllCheckbox();
                     });
                 });
+                this.updateSelectAllCheckbox();
+            }
+
+            toggleAllSubjects() {
+                const isChecked = this.elements.selectAllSubjects.checked;
+                const checkboxes = this.elements.subjectSelection.querySelectorAll('input[type="checkbox"]');
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = isChecked;
+                    this.subjectSelectionMap[checkbox.value] = isChecked;
+                });
+            }
+
+            updateSelectAllCheckbox() {
+                const checkboxes = this.elements.subjectSelection.querySelectorAll('input[type="checkbox"]');
+                const allChecked = Array.from(checkboxes).every(checkbox => checkbox.checked);
+                this.elements.selectAllSubjects.checked = allChecked;
             }
 
             showPreview() {
@@ -727,6 +750,12 @@
                     }
                 };
                 
+                preambleUtterance.onerror = () => {
+                    // Fallback in caso di errore di sintesi, per non bloccare la lettura
+                    this.showStatus('Errore nella sintesi del preambolo. Passo alla prossima domanda...', 'error', 3000);
+                    setTimeout(() => this.moveToNextCell(), 500);
+                };
+
                 this.synthesis.speak(preambleUtterance);
             }
 
@@ -791,6 +820,9 @@
                 this.isReading = false;
                 this.isPaused = false;
                 this.synthesis.cancel();
+                
+                // Gestione specifica per evitare l'errore al momento dello stop
+                // L'evento onend non si attiva, quindi chiamiamo la funzione di completamento direttamente
                 this.finishReading();
             }
 
