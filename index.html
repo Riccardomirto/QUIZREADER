@@ -340,7 +340,7 @@
     <div class="container">
         <h1>Lettore Quiz 🎧</h1>
         <h2>Quiz automatico da file "domande.csv".</h2>
-        <div class="file-status-text">
+        <div class="file-status-text" id="fileStatusText">
             <span>Caricamento "domande.csv"...</span>
         </div>
         <div class="status-message" id="statusMessage"></div>
@@ -384,7 +384,7 @@
             <button class="btn btn-stop" id="stopBtn" disabled>⏹️ Ferma</button>
         </div>
         
-        <div class="settings-section" id="subjectSelectionSection">
+        <div class="settings-section" id="subjectSelectionSection" style="display:none;">
             <h3 style="margin-top: 0; margin-bottom: 10px; text-align: center;">Seleziona le materie:</h3>
             <div id="subjectSelection"></div>
         </div>
@@ -416,7 +416,7 @@
             constructor() {
                 this.csvData = [];
                 this.dataRows = [];
-                this.selectedColumns = [];
+                this.selectedRows = [];
                 this.currentRowIndex = 0;
                 this.currentColIndexInSelected = 0;
                 this.isReading = false;
@@ -425,10 +425,14 @@
                 this.currentUtterance = null;
                 this.selectedVoice = null;
                 this.isVoicesLoaded = false;
-                this.isLastColumn = false; // Flag per gestire la pausa e il testo della risposta
+                this.isLastColumn = false;
+                this.allSubjects = new Set();
+                this.subjectHeaderIndex = 0;
+                this.subjectSelectionMap = {};
 
                 this.elements = {
                     statusMessage: document.getElementById('statusMessage'),
+                    fileStatusText: document.getElementById('fileStatusText'),
                     playBtn: document.getElementById('playBtn'),
                     pauseBtn: document.getElementById('pauseBtn'),
                     stopBtn: document.getElementById('stopBtn'),
@@ -518,6 +522,7 @@
             
             async loadCSVFile(fileName) {
                 try {
+                    this.elements.fileStatusText.style.display = 'block';
                     this.showStatus('Caricamento del file CSV in corso...', 'info');
                     const response = await fetch(fileName);
                     if (!response.ok) {
@@ -527,15 +532,18 @@
                     this.parseCSV(text);
                     const totalRows = this.dataRows.length;
                     if (totalRows > 0) {
+                        this.elements.fileStatusText.style.display = 'none';
                         this.showStatus(`✅ Quiz caricato! Trovate ${totalRows} domande.`, 'success');
                         this.elements.playBtn.disabled = false;
-                        this.showPreview();
                         this.createSubjectSelection();
+                        this.showPreview();
                     } else {
+                        this.elements.fileStatusText.style.display = 'none';
                         this.showStatus('Il file CSV non contiene dati validi (oltre l\'intestazione).', 'error');
                         this.elements.playBtn.disabled = true;
                     }
                 } catch (error) {
+                    this.elements.fileStatusText.style.display = 'none';
                     this.showStatus('Errore nel caricamento del file: ' + error.message, 'error');
                 }
             }
@@ -561,44 +569,45 @@
                     return result;
                 });
                 this.dataRows = this.csvData.slice(1);
+                
+                // Popola il set di tutte le materie
+                this.dataRows.forEach(row => {
+                    if (row[this.subjectHeaderIndex]) {
+                        this.allSubjects.add(row[this.subjectHeaderIndex].trim());
+                    }
+                });
             }
             
             createSubjectSelection() {
-                const headerRow = this.csvData[0];
                 const subjectContainer = this.elements.subjectSelection;
                 subjectContainer.innerHTML = '';
                 this.elements.subjectSelectionSection.style.display = 'block';
 
-                headerRow.slice(1).forEach((header, index) => {
+                this.subjectSelectionMap = {}; // Reset map
+
+                Array.from(this.allSubjects).sort().forEach(subject => {
                     const checkboxContainer = document.createElement('div');
                     checkboxContainer.className = 'checkbox-container';
                     
                     const checkbox = document.createElement('input');
                     checkbox.type = 'checkbox';
-                    checkbox.id = `subject-${index + 1}`;
-                    checkbox.value = index + 1; // L'indice della colonna
+                    checkbox.id = `subject-${subject.replace(/\s/g, '-')}`;
+                    checkbox.value = subject;
                     checkbox.checked = true; // Seleziona tutte le materie di default
                     
                     const label = document.createElement('label');
-                    label.htmlFor = `subject-${index + 1}`;
-                    label.textContent = header;
+                    label.htmlFor = `subject-${subject.replace(/\s/g, '-')}`;
+                    label.textContent = subject;
 
                     checkboxContainer.appendChild(checkbox);
                     checkboxContainer.appendChild(label);
                     subjectContainer.appendChild(checkboxContainer);
-                });
-            }
 
-            getSelectedColumns() {
-                const checkboxes = this.elements.subjectSelection.querySelectorAll('input[type="checkbox"]');
-                const selected = [];
-                checkboxes.forEach(checkbox => {
-                    if (checkbox.checked) {
-                        selected.push(parseInt(checkbox.value));
-                    }
+                    this.subjectSelectionMap[subject] = true;
+                    checkbox.addEventListener('change', (e) => {
+                        this.subjectSelectionMap[subject] = e.target.checked;
+                    });
                 });
-                // Ordina gli indici per garantire che vengano letti nell'ordine corretto
-                return selected.sort((a, b) => a - b);
             }
 
             showPreview() {
@@ -611,7 +620,7 @@
 
                 if (this.csvData.length > 0) {
                     const headerRow = document.createElement('tr');
-                    this.csvData[0].slice(1).forEach(header => {
+                    this.csvData[0].forEach(header => {
                         const th = document.createElement('th');
                         th.textContent = header;
                         headerRow.appendChild(th);
@@ -622,7 +631,7 @@
                 const previewRows = this.dataRows.slice(0, 5);
                 previewRows.forEach(row => {
                     const tr = document.createElement('tr');
-                    row.slice(1).forEach(cell => {
+                    row.forEach(cell => {
                         const td = document.createElement('td');
                         td.textContent = cell;
                         tr.appendChild(td);
@@ -632,30 +641,32 @@
             }
 
             startReading() {
-                this.selectedColumns = this.getSelectedColumns();
-                if (this.selectedColumns.length === 0) {
+                this.synthesis.cancel();
+                
+                this.selectedRows = this.dataRows.filter(row => {
+                    const subject = row[this.subjectHeaderIndex].trim();
+                    return this.subjectSelectionMap[subject];
+                });
+
+                if (this.selectedRows.length === 0) {
                     this.showStatus('Per favore, seleziona almeno una materia da leggere.', 'error');
                     return;
                 }
 
-                if (this.dataRows.length === 0) return;
-                
-                this.synthesis.cancel();
-                
                 this.isReading = true;
                 this.isPaused = false;
                 this.currentRowIndex = 0;
-                this.currentColIndexInSelected = 0;
+                this.currentColIndexInSelected = 1; // Inizia dalla colonna 'domanda'
 
                 this.elements.playBtn.disabled = true;
                 this.elements.stopBtn.disabled = false;
                 this.elements.pauseBtn.disabled = false;
                 this.elements.readingSection.style.display = 'block';
-                this.elements.progressTotal.textContent = this.dataRows.length;
+                this.elements.progressTotal.textContent = this.selectedRows.length;
                 this.elements.progressCurrent.textContent = 0;
 
                 if (this.elements.randomOrder.checked) {
-                    this.shuffleArray(this.dataRows);
+                    this.shuffleArray(this.selectedRows);
                 }
                 
                 this.readNextCell();
@@ -671,24 +682,23 @@
             readNextCell() {
                 if (!this.isReading || this.isPaused) return;
 
-                if (this.currentRowIndex >= this.dataRows.length) {
+                if (this.currentRowIndex >= this.selectedRows.length) {
                     this.finishReading();
                     return;
                 }
 
-                const row = this.dataRows[this.currentRowIndex];
+                const row = this.selectedRows[this.currentRowIndex];
                 
-                if (this.currentColIndexInSelected >= this.selectedColumns.length) {
+                if (this.currentColIndexInSelected >= row.length) {
                     this.currentRowIndex++;
-                    this.currentColIndexInSelected = 0;
+                    this.currentColIndexInSelected = 1; // Ritorna alla colonna 'domanda'
                     this.readNextCell();
                     return;
                 }
 
-                const actualColIndex = this.selectedColumns[this.currentColIndexInSelected];
-                const cellText = row[actualColIndex];
+                const cellText = row[this.currentColIndexInSelected];
                 
-                this.isLastColumn = this.currentColIndexInSelected === this.selectedColumns.length - 1;
+                this.isLastColumn = this.currentColIndexInSelected === row.length - 1;
 
                 if (cellText && cellText.trim()) {
                     if (this.isLastColumn) {
@@ -758,7 +768,7 @@
             }
 
             updateProgress() {
-                const totalQuestions = this.dataRows.length;
+                const totalQuestions = this.selectedRows.length;
                 const progressPercentage = totalQuestions > 0 ? ((this.currentRowIndex + 1) / totalQuestions) * 100 : 0;
                 this.elements.progressFill.style.width = progressPercentage + '%';
                 
