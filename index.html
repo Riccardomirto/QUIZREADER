@@ -89,45 +89,13 @@
             border: 1px solid #ffcdd2;
         }
 
-        .file-upload-section, .controls-section, .settings-section, .reading-section, .preview-section {
+        .controls-section, .settings-section, .reading-section, .preview-section {
             background: #fafbfc;
             border: 1px solid var(--border-color);
             border-radius: 12px;
             padding: 25px;
             margin-bottom: 25px;
             transition: all 0.3s ease;
-        }
-
-        .file-upload-section {
-            text-align: center;
-        }
-        
-        .file-upload-section.dragover {
-            background-color: #eef3f7;
-            border-color: var(--primary-light);
-            transform: translateY(-2px);
-        }
-
-        .file-input-label {
-            display: inline-block;
-            padding: 12px 24px;
-            background-color: var(--primary-color);
-            color: white;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: background-color 0.3s, transform 0.2s;
-            box-shadow: 0 4px 12px rgba(93, 86, 249, 0.25);
-            margin-top: 15px;
-        }
-
-        .file-input-label:hover {
-            background-color: var(--primary-light);
-            transform: translateY(-2px);
-        }
-
-        #fileInput {
-            display: none;
         }
 
         .controls-section {
@@ -342,6 +310,12 @@
             flex: 1;
             min-width: 150px;
         }
+        .file-status-text {
+            font-style: italic;
+            text-align: center;
+            color: #777;
+            margin-bottom: 20px;
+        }
 
     </style>
 </head>
@@ -349,17 +323,11 @@
 
     <div class="container">
         <h1>Lettore Quiz 🎧</h1>
-        <h2>Ascolta le domande con le risposte.</h2>
-
+        <h2>Carica il file "domande.csv" nella stessa directory e avvia la lettura.</h2>
+        <div class="file-status-text">
+            <span>File "domande.csv" in caricamento...</span>
+        </div>
         <div class="status-message" id="statusMessage"></div>
-
-        <div class="file-upload-section" id="uploadArea">
-            <input type="file" id="fileInput" accept=".csv">
-            <label for="fileInput" class="file-input-label">
-                <span id="upload-icon">📁</span> Seleziona o trascina un file CSV
-            </label>
-            </div>
-
         <div class="settings-section" id="settingsSection">
             <h3 style="margin-top: 0; margin-bottom: 20px; text-align: center;">⚙️ Impostazioni</h3>
             <div class="horizontal-sliders">
@@ -395,7 +363,7 @@
         </div>
 
         <div class="controls-section">
-            <button class="btn btn-play" id="playBtn" disabled>▶️ Inizia</button>
+            <button class="btn btn-play" id="playBtn" disabled>▶️ Inizia Lettura</button>
             <button class="btn btn-pause" id="pauseBtn" disabled>⏸️ Pausa</button>
             <button class="btn btn-stop" id="stopBtn" disabled>⏹️ Ferma</button>
         </div>
@@ -428,7 +396,7 @@
                 this.csvData = [];
                 this.dataRows = [];
                 this.currentRowIndex = 0;
-                this.currentCol = 0;
+                this.currentCol = 1; // Inizia dalla seconda colonna
                 this.isReading = false;
                 this.isPaused = false;
                 this.synthesis = window.speechSynthesis;
@@ -437,8 +405,6 @@
                 this.isVoicesLoaded = false;
 
                 this.elements = {
-                    fileInput: document.getElementById('fileInput'),
-                    uploadArea: document.getElementById('uploadArea'),
                     statusMessage: document.getElementById('statusMessage'),
                     playBtn: document.getElementById('playBtn'),
                     pauseBtn: document.getElementById('pauseBtn'),
@@ -462,13 +428,10 @@
 
                 this.bindEvents();
                 this.initTTS();
+                this.loadCSVFile('domande.csv');
             }
 
             bindEvents() {
-                this.elements.fileInput.addEventListener('change', this.handleFileSelect.bind(this));
-                this.elements.uploadArea.addEventListener('dragover', this.handleDragOver.bind(this));
-                this.elements.uploadArea.addEventListener('dragleave', this.handleDragLeave.bind(this));
-                this.elements.uploadArea.addEventListener('drop', this.handleDrop.bind(this));
                 this.elements.playBtn.addEventListener('click', this.startReading.bind(this));
                 this.elements.pauseBtn.addEventListener('click', this.pauseReading.bind(this));
                 this.elements.stopBtn.addEventListener('click', this.stopReading.bind(this));
@@ -490,7 +453,6 @@
                     }
                 };
 
-                // Fallback nel caso onvoiceschanged non si attivi subito
                 if (this.synthesis.getVoices().length > 0) {
                     this.selectBestVoice();
                     this.isVoicesLoaded = true;
@@ -528,43 +490,15 @@
                     this.showStatus('Nessuna voce italiana trovata. La qualità dell\'audio potrebbe essere ridotta.', 'error', 5000);
                 }
             }
-
-            handleDragOver(e) {
-                e.preventDefault();
-                this.elements.uploadArea.classList.add('dragover');
-            }
             
-            handleDragLeave(e) {
-                e.preventDefault();
-                this.elements.uploadArea.classList.remove('dragover');
-            }
-
-            handleDrop(e) {
-                e.preventDefault();
-                this.elements.uploadArea.classList.remove('dragover');
-                const files = e.dataTransfer.files;
-                if (files.length > 0) {
-                    this.processFile(files[0]);
-                }
-            }
-
-            async handleFileSelect(e) {
-                const file = e.target.files[0];
-                if (file) {
-                    this.processFile(file);
-                }
-            }
-
-            async processFile(file) {
-                if (!file.name.toLowerCase().endsWith('.csv')) {
-                    this.showStatus('Per favore seleziona un file CSV valido.', 'error');
-                    return;
-                }
-
-                this.showStatus('Caricamento file in corso...', 'info');
-                
+            async loadCSVFile(fileName) {
                 try {
-                    const text = await this.readFileAsText(file);
+                    this.showStatus('Caricamento del file CSV in corso...', 'info');
+                    const response = await fetch(fileName);
+                    if (!response.ok) {
+                        throw new Error(`Impossibile trovare il file '${fileName}'. Assicurati che sia nella stessa directory.`);
+                    }
+                    const text = await response.text();
                     this.parseCSV(text);
                     const totalRows = this.dataRows.length;
                     if (totalRows > 0) {
@@ -572,22 +506,12 @@
                         this.elements.playBtn.disabled = false;
                         this.showPreview();
                     } else {
-                        this.showStatus('Il file CSV non contiene dati validi.', 'error');
+                        this.showStatus('Il file CSV non contiene dati validi (oltre l\'intestazione).', 'error');
                         this.elements.playBtn.disabled = true;
                     }
                 } catch (error) {
                     this.showStatus('Errore nel caricamento del file: ' + error.message, 'error');
-                    this.elements.playBtn.disabled = true;
                 }
-            }
-
-            readFileAsText(file) {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => resolve(e.target.result);
-                    reader.onerror = (e) => reject(new Error('Errore nella lettura del file'));
-                    reader.readAsText(file, 'utf-8');
-                });
             }
 
             parseCSV(text) {
@@ -623,7 +547,8 @@
 
                 if (this.csvData.length > 0) {
                     const headerRow = document.createElement('tr');
-                    this.csvData[0].forEach(header => {
+                    // Salta la prima colonna per l'intestazione
+                    this.csvData[0].slice(1).forEach(header => {
                         const th = document.createElement('th');
                         th.textContent = header;
                         headerRow.appendChild(th);
@@ -634,7 +559,8 @@
                 const previewRows = this.dataRows.slice(0, 5);
                 previewRows.forEach(row => {
                     const tr = document.createElement('tr');
-                    row.forEach(cell => {
+                    // Salta la prima colonna per i dati
+                    row.slice(1).forEach(cell => {
                         const td = document.createElement('td');
                         td.textContent = cell;
                         tr.appendChild(td);
@@ -651,7 +577,7 @@
                 this.isReading = true;
                 this.isPaused = false;
                 this.currentRowIndex = 0;
-                this.currentCol = 0;
+                this.currentCol = 1;
 
                 this.elements.playBtn.disabled = true;
                 this.elements.stopBtn.disabled = false;
@@ -686,7 +612,7 @@
                 
                 if (this.currentCol >= row.length) {
                     this.currentRowIndex++;
-                    this.currentCol = 0;
+                    this.currentCol = 1; // Ritorna alla seconda colonna
                     this.readNextCell();
                     return;
                 }
